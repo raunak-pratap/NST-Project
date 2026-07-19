@@ -33,40 +33,15 @@ class UploadForm(FlaskForm):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- REPLACE YOUR IF/ELSE FALLBACK WITH THIS STREAMING DOWNLOAD LOGIC ---
-import urllib.request
-
-vgg_path = 'vgg_normalised.pth'
-
-if not os.path.exists(vgg_path):
-    print("Downloading lightweight vgg_normalised.pth (~80MB)...")
-    url = "https://raw.githubusercontent.com/jvanvugt/pytorch-adain/master/vgg_normalised.pth"
-    
-    # Spoof full browser headers to completely bypass cloud 403 restrictions
-    req = urllib.request.Request(
-        url, 
-        headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-        }
-    )
-    
-    # Stream chunk by chunk directly to disk so RAM usage stays near zero
-    with urllib.request.urlopen(req) as response, open(vgg_path, 'wb') as out_file:
-        chunk_size = 1024 * 1024  # 1MB chunks
-        while True:
-            chunk = response.read(chunk_size)
-            if not chunk:
-                break
-            out_file.write(chunk)
-    print("Download complete!")
-
-# Load the encoder safely using the lightweight file
-encoder = VGGEncoder(vgg_path).to(device)
-# ------------------------------------------------------------------------
-
+encoder = VGGEncoder('vgg_normalised.pth').to(device)
 decoder = Decoder().to(device)
-decoder.load_state_dict(torch.load('experiment/final_exp/decoder_10.pth', weights_only=False))
+state_dict = torch.load('/Users/raunakpratap/Desktop/NST-Code/experiment/final_exp/decoder_10.pth', map_location='cpu')
+
+fixed_state_dict = {}
+for k, v in state_dict.items():
+    fixed_state_dict[k.replace('decoder', 'net')] = v
+
+decoder.load_state_dict(fixed_state_dict)
 
 encoder.eval()
 decoder.eval()
@@ -77,12 +52,12 @@ def allowed_file(filename):
 
 def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
     content_transform = transforms.Compose([
-        transforms.Resize(256, 256),
+        transforms.Resize(512),
         transforms.ToTensor()
     ])
 
     style_transform = transforms.Compose([
-        transforms.Resize(256, 256),
+        transforms.Resize(512),
         transforms.ToTensor()
     ])
     content_image = content_transform(content_image).unsqueeze(0).to(device)

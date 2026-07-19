@@ -6,3 +6,12 @@
 __pycache__/
 **/__pycache__/
 *.pyc
+
+# Model weights
+*.pth
+
+# Uploaded/generated images
+static/uploads/
+
+*.pth
+static/uploads/
