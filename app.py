@@ -36,8 +36,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 vgg_path = 'vgg_normalised.pth'
 if not os.path.exists(vgg_path):
-    print("Downloading vgg_normalised.pth for cloud runtime...")
-    url = "https://github.com/xunhuang1995/AdaIN-style/raw/master/models/vgg_normalised.pth"
+    print("Downloading vgg_normalised.pth...")
+    # 🌟 Fixed: High-reliability stable URL from Hugging Face
+    url = "https://huggingface.co/coqui/cgd-nst/resolve/main/vgg_normalised.pth"
     urllib.request.urlretrieve(url, vgg_path)
     print("Download complete!")
 
