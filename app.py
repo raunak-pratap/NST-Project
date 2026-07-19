@@ -9,7 +9,6 @@ from wtforms.validators import InputRequired
 from PIL import Image
 from torchvision import transforms
 import io
-import urllib.request
 
 # Import your existing AdaIN code
 from utils.models import VGGEncoder, Decoder
@@ -34,23 +33,16 @@ class UploadForm(FlaskForm):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-vgg_path = 'vgg_normalised.pth'
-if not os.path.exists(vgg_path):
-    print("Downloading vgg_normalised.pth...")
-    # 🌟 Fixed: High-reliability stable public AWS link (No 401/404 errors)
-    url = "https://download.pytorch.org/models/vgg19-dcbb9e92.pth" 
-    
-    # We will spoof a browser User-Agent just to ensure absolute compatibility
-    opener = urllib.request.build_opener()
-    opener.addheaders = [('User-agent', 'Mozilla/5.0')]
-    urllib.request.install_opener(opener)
-    
-    urllib.request.urlretrieve(url, vgg_path)
-    print("Download complete!")
+# --- Dynamic Weight Loading Fallback ---
+if os.path.exists('vgg_normalised.pth'):
+    print("Loading local vgg_normalised.pth encoder weights...")
+    encoder = VGGEncoder('vgg_normalised.pth').to(device)
+else:
+    print("Initializing encoder on Render via native torchvision download...")
+    encoder = VGGEncoder(pretrained_cloud=True).to(device)
 
-encoder = VGGEncoder('vgg_normalised.pth').to(device)
 decoder = Decoder().to(device)
-decoder.load_state_dict(torch.load('/Users/raunakpratap/Desktop/NST-Code/experiment/final_exp/decoder_10.pth'))
+decoder.load_state_dict(torch.load('experiment/final_exp/decoder_10.pth', weights_only=False))
 
 encoder.eval()
 decoder.eval()
@@ -61,12 +53,12 @@ def allowed_file(filename):
 
 def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
     content_transform = transforms.Compose([
-        transforms.Resize(512),
+        transforms.Resize(256, 256),
         transforms.ToTensor()
     ])
 
     style_transform = transforms.Compose([
-        transforms.Resize(512),
+        transforms.Resize(256, 256),
         transforms.ToTensor()
     ])
     content_image = content_transform(content_image).unsqueeze(0).to(device)
@@ -159,4 +151,4 @@ def send_example(filename):
 
 if __name__ == '__main__':
     from werkzeug.serving import run_simple
-    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
+    run_simple('localhost', 8080, app, use_reloader=True, use_debugger=True)
