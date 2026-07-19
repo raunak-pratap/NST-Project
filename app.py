@@ -33,13 +33,37 @@ class UploadForm(FlaskForm):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- Dynamic Weight Loading Fallback ---
-if os.path.exists('vgg_normalised.pth'):
-    print("Loading local vgg_normalised.pth encoder weights...")
-    encoder = VGGEncoder('vgg_normalised.pth').to(device)
-else:
-    print("Initializing encoder on Render via native torchvision download...")
-    encoder = VGGEncoder(pretrained_cloud=True).to(device)
+# --- REPLACE YOUR IF/ELSE FALLBACK WITH THIS STREAMING DOWNLOAD LOGIC ---
+import urllib.request
+
+vgg_path = 'vgg_normalised.pth'
+
+if not os.path.exists(vgg_path):
+    print("Downloading lightweight vgg_normalised.pth (~80MB)...")
+    url = "https://raw.githubusercontent.com/jvanvugt/pytorch-adain/master/vgg_normalised.pth"
+    
+    # Spoof full browser headers to completely bypass cloud 403 restrictions
+    req = urllib.request.Request(
+        url, 
+        headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        }
+    )
+    
+    # Stream chunk by chunk directly to disk so RAM usage stays near zero
+    with urllib.request.urlopen(req) as response, open(vgg_path, 'wb') as out_file:
+        chunk_size = 1024 * 1024  # 1MB chunks
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            out_file.write(chunk)
+    print("Download complete!")
+
+# Load the encoder safely using the lightweight file
+encoder = VGGEncoder(vgg_path).to(device)
+# ------------------------------------------------------------------------
 
 decoder = Decoder().to(device)
 decoder.load_state_dict(torch.load('experiment/final_exp/decoder_10.pth', weights_only=False))
