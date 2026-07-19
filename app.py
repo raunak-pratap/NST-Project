@@ -9,10 +9,12 @@ from wtforms.validators import InputRequired
 from PIL import Image
 from torchvision import transforms
 import io
+import urllib.request
 
 # Import your existing AdaIN code
 from utils.models import VGGEncoder, Decoder
 from utils.utils import adaptive_instance_normalization, calc_mean_std
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'supersecretkey'
@@ -30,21 +32,18 @@ class UploadForm(FlaskForm):
     alpha = FloatField('Alpha', default=1.0)
     submit = SubmitField('Transfer Style')
 
-# --- FIX 1: Proper Apple Silicon GPU (MPS) target setup ---
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
-    print("Using Apple Silicon GPU (MPS)")
-elif torch.cuda.is_available():
-    device = torch.device("cuda")
-    print("Using NVIDIA CUDA GPU")
-else:
-    device = torch.device("cpu")
-    print("Using CPU")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- FIX 2: Added weights_only=False to bypass PyTorch 2.6 load error ---
+vgg_path = 'vgg_normalised.pth'
+if not os.path.exists(vgg_path):
+    print("Downloading vgg_normalised.pth for cloud runtime...")
+    url = "https://github.com/xunhuang1995/AdaIN-style/raw/master/models/vgg_normalised.pth"
+    urllib.request.urlretrieve(url, vgg_path)
+    print("Download complete!")
+
 encoder = VGGEncoder('vgg_normalised.pth').to(device)
 decoder = Decoder().to(device)
-decoder.load_state_dict(torch.load('/Users/raunakpratap/Desktop/NST-Code/experiment/final_exp/decoder_10.pth', weights_only=False))
+decoder.load_state_dict(torch.load('/Users/raunakpratap/Desktop/NST-Code/experiment/final_exp/decoder_10.pth'))
 
 encoder.eval()
 decoder.eval()
@@ -71,11 +70,13 @@ def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
         style_feats = encoder(style_image, is_test=True)
 
         stylized_feats = adaptive_instance_normalization(content_feats, style_feats)
+
         stylized_feats = alpha * stylized_feats + (1 - alpha) * content_feats
 
         stylized_image = decoder(stylized_feats)
 
     return stylized_image
+
 
 def save_image(image, path):
     image = image.cpu().clone()
@@ -83,6 +84,8 @@ def save_image(image, path):
     image = image.clamp(0, 1)
     image = transforms.ToPILImage()(image)
     image.save(path)
+
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -127,19 +130,26 @@ def index():
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
+    else:
+        if not content_filename:
+            error = 'Please upload content image'
+        if not style_filename:
+            error = 'Please upload style image'
 
     return render_template('index.html', form=form, result_image=result_image, content_image=content_filename,
                            style_image=style_filename, error=error)
+
 
 @app.route('/uploads/<filename>')
 def send_image(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+
 @app.route('/examples/<path:filename>')
 def send_example(filename):
     return send_from_directory('examples', filename)
 
+
 if __name__ == '__main__':
     from werkzeug.serving import run_simple
-    # --- FIX 3: Bound to '127.0.0.1' and changed port to 8080 to dodge AirPlay ---
-    run_simple('127.0.0.1', 8080, app, use_reloader=True, use_debugger=True)
+    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
