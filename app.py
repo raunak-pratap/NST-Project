@@ -9,6 +9,7 @@ from wtforms.validators import InputRequired
 from PIL import Image
 from torchvision import transforms
 import io
+import traceback
 
 # Import your existing AdaIN code
 from utils.models import VGGEncoder, Decoder
@@ -126,19 +127,29 @@ def index():
             style_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
             
             try:
-                content_image = Image.open(content_path).convert('RGB')
-                style_image = Image.open(style_path).convert('RGB')
+                content_image = Image.open(content_path).convert("RGB")
+                style_image = Image.open(style_path).convert("RGB")
 
                 alpha = float(form.alpha.data)
-                stylized_image = style_transfer(content_image, style_image, encoder, decoder, alpha, device)
 
-                result_filename = 'stylized_' + content_filename
-                result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
+                stylized_image = style_transfer(
+                    content_image,
+                    style_image,
+                    encoder,
+                    decoder,
+                    alpha,
+                    device,
+                )
+
+                result_filename = "stylized_" + content_filename
+                result_path = os.path.join(app.config["UPLOAD_FOLDER"], result_filename)
                 save_image(stylized_image, result_path)
-                
+
                 result_image = result_filename
-            except Exception as e:
-                error = str(e)
+
+            except Exception:
+                traceback.print_exc()
+                raise
     else:
         if not content_filename:
             error = 'Please upload content image'
