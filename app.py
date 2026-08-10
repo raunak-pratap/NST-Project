@@ -170,6 +170,11 @@ def send_image(filename):
 def send_example(filename):
     return send_from_directory(os.path.join(BASE_DIR, 'examples'), filename)
 
+# Health check endpoint for load balancers / PaaS health probes
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK', 200
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
