@@ -69,8 +69,10 @@ def main():
     args = parse_arguments()
     
 
-# Setup the device manually
-    if torch.backends.mps.is_available():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using CUDA GPU")
+    elif torch.backends.mps.is_available():
         device = torch.device("mps")
         print("Using Apple Silicon GPU (MPS)")
     else:
@@ -90,15 +92,18 @@ def main():
     content_dataset = ImageFolderDataset(args.content_dir, content_transform)
     style_dateset = ImageFolderDataset(args.style_dir, style_transform)
 
+    if not content_dataset or not style_dateset:
+        raise ValueError('Content and style directories must each contain at least one PNG or JPEG image.')
+
     content_dataloader = DataLoader(content_dataset,
                                     batch_size=args.batch_size,
                                     shuffle = True,
-                                    pin_memory=True,
+                                    pin_memory=device.type == 'cuda',
                                     drop_last=True)
     style_dataloader = DataLoader(style_dateset,
                                   batch_size=args.batch_size,
                                   shuffle=True,
-                                  pin_memory=True,
+                                  pin_memory=device.type == 'cuda',
                                   drop_last=True)
     
     # print('Number of batches in content dataset: ', len(content_dataloader))
@@ -116,8 +121,10 @@ def main():
     )
 
     if args.resume:
-        decoder.load_state_dict(torch.load(args.decoder_path))
-        optimizer.load_state_dict(torch.load(args.optimizer_path))
+        if not args.decoder_path or not args.optimizer_path:
+            raise ValueError('--resume requires --decoder_path and --optimizer_path.')
+        decoder.load_state_dict(torch.load(args.decoder_path, map_location=device, weights_only=True))
+        optimizer.load_state_dict(torch.load(args.optimizer_path, map_location=device, weights_only=True))
 
     print("Training...")
 
@@ -131,6 +138,9 @@ def main():
     running_sloss = 0.0 # style loss
 
     for epoch in range(args.epochs):
+        running_loss = 0.0
+        running_closs = 0.0
+        running_sloss = 0.0
         progress_bar = tqdm(zip(content_dataloader, style_dataloader),
                             total=min(len(content_dataloader), len(style_dataloader)))
         

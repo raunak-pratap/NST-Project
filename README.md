@@ -16,7 +16,7 @@ Highlights
 
 Tech stack
 ----------
-- Python 3.8+
+- Python 3.12 (pinned for deployment in `runtime.txt`)
 - Flask
 - PyTorch & torchvision
 - WTForms / Flask-WTF for upload forms
@@ -45,7 +45,7 @@ Quickstart (local)
 
 2. Create and activate a virtual environment (recommended):
 
-   python -m venv .venv
+   python3.12 -m venv .venv
    # macOS / Linux
    source .venv/bin/activate
    # Windows (PowerShell)
@@ -98,7 +98,13 @@ Performance & GPU
 
 Testing
 -------
-- There are no formal tests in the repository yet. You can run basic end-to-end checks by starting the server and trying the provided images in `examples/`.
+- Run the automated checks (the bundled model weights are used to verify model startup):
+
+  ```bash
+  python -m unittest discover -s tests -v
+  ```
+
+- For a manual end-to-end check, start the server and upload the provided images in `examples/`.
 
 Adding or updating model weights
 -------------------------------
@@ -106,9 +112,9 @@ If you train new decoder checkpoints with `train.py`, save them under `experimen
 
 Security & File uploads
 -----------------------
-- Uploaded filenames are sanitized with `werkzeug.utils.secure_filename` and saved under `static/uploads/`.
-- Allowed file extensions: png, jpg, jpeg.
-- For public deployments, consider adding stricter file size limits and scanning uploaded content.
+- Uploaded files are verified as images, use safe unique filenames, and are saved under `static/uploads/`.
+- Allowed formats: PNG, JPG, and JPEG. Each upload is limited to 10 MB by default; set `MAX_UPLOAD_BYTES` to change the limit.
+- The app serializes inference requests to prevent concurrent requests exhausting memory on small deployments.
 
 Contributing
 ------------
